@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <!--
+        O meta viewport garante que o conteúdo ocupe 100% da tela no WebView Android,
+        respeitando o zoom e a densidade de pixels do dispositivo.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Roteirizador Map</title>
+
+    <!--
+        Leaflet é uma biblioteca JavaScript de código aberto usada para criar mapas interativos em aplicações web.
+        Abaixo, carregamos os estilos do Leaflet e do Leaflet Routing Machine (para traçar rotas entre waypoints).
+    -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+
+    <style>
+        /* Ocupa a tela toda */
+        html, body, #map {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        /*
+            Permite pan/zoom de forma fluida dentro do WebView Android.
+            - Com 'touch-action: pan-x pan-y', o Leaflet recebe os gestos:
+              * 1 dedo = arrastar (pan)
+              * 2 dedos = pinch-zoom (zoom por pinça)
+            - Este comportamento imita o WalkingTrackerApp.
+        */
+        .leaflet-container {
+            touch-action: pan-x pan-y;
+        }
+    </style>
+</head>
+<body>
+    <!-- Contêiner do mapa -->
+    <div id="map"></div>
+
+    <!--
+        Scripts do Leaflet e do Routing Machine (sem Gesture Handling).
+        O plugin "gesture-handling" exibe a mensagem de "use dois dedos para mover o mapa";
+        como queremos pan com 1 dedo, NÃO o incluímos.
+    -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.min.js"></script>
+
+    <script>
+        // =======================
+        // Inicialização do mapa
+        // - Sem 'gestureHandling': pan com 1 dedo e pinch-zoom com 2 dedos (padrão Leaflet)
+        // - tap:false reduz conflitos de toque com WebView
+        // - touchZoom:'center' melhora UX do pinch
+        // =======================
+        var map = L.map('map', {
+            zoomControl: true,
+            tap: false,
+            touchZoom: 'center',
+            dragging: true
+        }).setView([-5.79357, -35.1986], 12); // Natal, RN como fallback
+
+        // Camada de tiles do OpenStreetMap
+        // - Carrega imagens do OSM para compor o mapa
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Estado do desenho
+        var markers = [];           // pinos dos CEPs
+        var routeControl = null;    // controle do Leaflet Routing Machine
+        var startMarker = null;     // pino "Início" (GPS do dispositivo)
+
+        // =======================
+        // - setStart(lat, lon)
+        // - Centraliza o mapa nas coordenadas do dispositivo
+        // - Adiciona ou atualiza o marcador "Início"
+        // =======================
+        function setStart(lat, lon) {
+            try {
+                // Remove o marcador "Início" anterior, se existir
+                if (startMarker) {
+                    map.removeLayer(startMarker);
+                    startMarker = null;
+                }
+                // Cria um novo marcador "Início" nas coordenadas fornecidas
+                startMarker = L.marker([lat, lon]).addTo(map).bindPopup('Início');
+                // Ajusta a visualização do mapa para o marcador com zoom 15
+                map.setView([lat, lon], 15);
+            } catch (e) {
+                console.log('setStart error', e);
+            }
+        }
+
+        // =======================
+        // plotPointsAndRoute(points)
+        // - Remove marcadores e rotas anteriores
+        // - Cria marcadores para cada CEP e desenha a rota na ordem recebida
+        // - Centraliza rapidamente usando bounds calculado diretamente (fitToBounds)
+        // =======================
+        function plotPointsAndRoute(points) {
+            clearRoutesAndMarkers();
+
+            var latlngs = [];
+
+            // Cria marcadores para cada ponto (CEP) recebido
+            points.forEach(function (p) {
+                // Verifica se o ponto tem coordenadas válidas (lat, lon)
+                if (p && p.lat && p.lon) {
+                    var m = L.marker([p.lat, p.lon]).addTo(map).bindPopup(p.label || '');
+                    // Adiciona o marcador à lista de marcadores
+                    markers.push(m);
+                    // Adiciona as coordenadas à lista para a rota e centralização
+                    latlngs.push(L.latLng(p.lat, p.lon));
+                }
+            });
+
+            // Ajusta o zoom do mapa de forma imediata com base nas coordenadas disponíveis
+            if (latlngs.length > 0) {
+                fitToBounds(latlngs); // centraliza sem depender da renderização dos marcadores
+            }
+
+            // Cria uma rota se houver pelo menos dois pontos
+            if (latlngs.length >= 2) {
+                // Configura o controle de roteamento com os pontos fornecidos
+                routeControl = L.Routing.control({
+                    waypoints: latlngs,
+                    lineOptions: {
+                        addWaypoints: false,
+                        // === Aqui definimos a cor da rota (AZUL) ===
+                        styles: [
+                            { color: 'blue', opacity: 0.85, weight: 5 }
+                        ]
+                    },                    
+                    routeWhileDragging: false,
+                    show: false,
+                    collapsible: true
+                }).addTo(map);
+
+            }
+        }
+
+        // =======================
+        // clearRoutesAndMarkers()
+        // - Remove a rota e todos os pinos dos CEPs (mantém "Início")
+        // =======================
+        function clearRoutesAndMarkers() {
+            // Remove a rota, se existir
+            if (routeControl) {
+                routeControl.setWaypoints([]);
+                map.removeControl(routeControl);
+                routeControl = null;
+            }
+            // Remove todos os marcadores de CEP
+            markers.forEach(function (m) { map.removeLayer(m); });
+            markers = [];
+        }
+
+        // =======================
+        // fitToBounds(latlngs)
+        // - Ajusta o zoom para mostrar todas as coordenadas informadas
+        // - Útil para centralizar rápido sem depender do DOM/estágio de render dos pinos
+        // =======================
+        function fitToBounds(latlngs) {
+            try {
+                if (!latlngs || latlngs.length === 0) return;
+                var bounds = L.latLngBounds(latlngs);
+                // Ajusta o mapa para exibir todos os pontos com um padding de 20%
+                map.fitBounds(bounds.pad(0.2));
+            } catch (e) {
+                console.log('fitToBounds error', e);
+            }
+        }
+
+        // =======================
+        // fitToData()
+        // - Ajusta o zoom para mostrar todos os pinos dos CEPs
+        // - Alternativa baseada nos marcadores já desenhados
+        // =======================
+        function fitToData() {
+            // Cria um grupo temporário com todos os marcadores
+            var group = new L.featureGroup(markers);
+            // Ajusta o mapa para exibir todos os marcadores com um padding de 20%
+            if (markers.length > 0) {
+                map.fitBounds(group.getBounds().pad(0.2));
+            }
+        }
+
+        // Expõe funções ao C# via WebView.EvaluateJavaScriptAsync
+        window.plotPointsAndRoute = plotPointsAndRoute;
+        window.clearRoutesAndMarkers = clearRoutesAndMarkers;
+        window.fitToData = fitToData;
+        window.fitToBounds = fitToBounds; // nova função exposta
+        window.setStart = setStart;
+    </script>
+</body>
+</html>

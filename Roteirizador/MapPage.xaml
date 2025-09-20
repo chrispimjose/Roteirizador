@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Roteirizador.MapPage"
+             Title="Mapa e Rotas">
+    <Grid RowDefinitions="Auto,*">
+        <!-- Barra de ações -->
+        <HorizontalStackLayout Padding="10" Spacing="10">
+            <Button Text="Desenhar Rotas" Clicked="OnDesenharClicked"/>
+            <Button Text="Apagar Rotas" Clicked="OnApagarClicked"/>
+            <Button Text="Centralizar" Clicked="OnCentralizarClicked"/>
+        </HorizontalStackLayout>
+
+        <!-- WebView preenchendo toda a área disponível -->
+        <WebView x:Name="MapWebView"
+                 Grid.Row="1"
+                 Navigated="OnWebNavigated"
+                 HorizontalOptions="FillAndExpand"
+                 VerticalOptions="FillAndExpand" />
+    </Grid>
+</ContentPage>

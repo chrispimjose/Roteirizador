@@ -1,0 +1,100 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Roteirizador.MainPage"
+             Title="Roteirizador - CEPs"
+             BackgroundColor="{AppThemeBinding Light=White, Dark=#121212}">
+
+    <!-- Usamos Grid para garantir altura fixa/expansível para a lista.
+       As 3 primeiras linhas são Auto (título + entrada + botões),
+       e a última linha é * (estrela) → ocupa o restante da tela (rolável). -->
+    <Grid Padding="20" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="12">
+
+        <!-- Título -->
+        <Label Grid.Row="0"
+           Text="Cadastre os CEPs para gerar a rota"
+           FontSize="20"
+           TextColor="{AppThemeBinding Light=Black, Dark=WhiteSmoke}" />
+
+        <!-- Linha de cadastro -->
+        <HorizontalStackLayout Grid.Row="1" Spacing="10">
+            <Entry x:Name="CepEntry"
+             Placeholder="Digite o CEP (somente números)"
+             Keyboard="Numeric"
+             HorizontalOptions="FillAndExpand"
+             TextColor="{AppThemeBinding Light=Black, Dark=WhiteSmoke}"
+             PlaceholderColor="{AppThemeBinding Light=#777, Dark=#AAA}"
+             BackgroundColor="Transparent" />
+            <Button Text="Cadastrar CEP" Clicked="OnCadastrarCepClicked"/>
+        </HorizontalStackLayout>
+
+        <!-- Ações gerais -->
+        <HorizontalStackLayout Grid.Row="2" Spacing="10">
+            <Button Text="Limpar Lista" Clicked="OnLimparClicked"/>
+            <Button Text="Abrir Mapa" Clicked="OnAbrirMapaClicked"/>
+        </HorizontalStackLayout>
+
+        <!-- LISTA (linha 3 = *):
+         - Ocupa o restante do espaço da tela → rola normalmente.
+         - Sem backgrounds brancos.
+         - EmptyView evita parecer "linha em branco" quando não há itens. -->
+        <CollectionView Grid.Row="3"
+                    x:Name="CepList"
+                    ItemsSource="{Binding CepItems}"
+                    SelectionMode="None"
+                    ItemsLayout="VerticalList"
+                    ItemSizingStrategy="MeasureAllItems"
+                    BackgroundColor="Transparent">
+
+            <CollectionView.EmptyView>
+                <Label Text="Nenhum CEP cadastrado."
+               HorizontalTextAlignment="Center"
+               VerticalTextAlignment="Center"
+               Margin="0,12"
+               TextColor="{AppThemeBinding Light=#555, Dark=#AAA}" />
+            </CollectionView.EmptyView>
+
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <!-- Swipe para apagar -->
+                    <SwipeView BackgroundColor="Transparent">
+                        <SwipeView.RightItems>
+                            <SwipeItems Mode="Reveal">
+                                <SwipeItem Text="Apagar"
+                           BackgroundColor="#E53935"
+                           Invoked="OnApagarItemSwipe"/>
+                            </SwipeItems>
+                        </SwipeView.RightItems>
+
+                        <!-- Item "limpo": apenas CEP + Endereço + ↑/↓; nada de fundo branco -->
+                        <Grid Padding="8,10"
+                  Margin="0,2"
+                  ColumnDefinitions="* ,Auto"
+                  RowDefinitions="Auto,Auto"
+                  BackgroundColor="Transparent">
+
+                            <!-- CEP -->
+                            <Label Grid.Column="0"
+                     Text="{Binding Cep}"
+                     FontAttributes="Bold"
+                     TextColor="{AppThemeBinding Light=Black, Dark=WhiteSmoke}" />
+
+                            <!-- Endereço -->
+                            <Label Grid.Row="1" Grid.Column="0"
+                     Text="{Binding Endereco}"
+                     LineBreakMode="WordWrap"
+                     TextColor="{AppThemeBinding Light=#222, Dark=#D0D0D0}" />
+
+                            <!-- ↑/↓ para reordenar -->
+                            <VerticalStackLayout Grid.RowSpan="2" Grid.Column="1" Spacing="4">
+                                <Button Text="↑" Padding="6,0" Clicked="OnMoveUpClicked" CommandParameter="{Binding .}" />
+                                <Button Text="↓" Padding="6,0" Clicked="OnMoveDownClicked" CommandParameter="{Binding .}" />
+                            </VerticalStackLayout>
+
+                        </Grid>
+                    </SwipeView>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
+</ContentPage>
